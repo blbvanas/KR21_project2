@@ -63,9 +63,16 @@ def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
             net.del_var(node)
     return net
 
-def factor_multiplication(net, f, g): #Bart
-    print(net.bn.get_all_cpts())
-    return True
+def factor_multiplication(cpt1, cpt2): #Bart
+    #if cpt1 == cpt2:
+    #    raise Exception('Both factors are the same') 
+    cpt2 = cpt2.rename(columns={'p':'p2'}) 
+    cpt = pd.merge(cpt1,cpt2)
+    
+    cpt2['Blub'] = ['blub', 'blub', 'blub', 'blub']
+    cpt['p'] = cpt['p'] * cpt['p2'] 
+    cpt = cpt.drop('p2', axis=1)
+    return cpt
 
 
 def maginalization(cpt, var):
@@ -74,6 +81,11 @@ def maginalization(cpt, var):
     cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, 
     return cpt.reset_index()
 
-
+def maxing_out(): #Bart
+    return True
 
 net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
+cpt1 = net.bn.get_cpt('light-on')
+cpt2 = net.bn.get_cpt('family-out')
+
+print(factor_multiplication(cpt1, cpt1))
