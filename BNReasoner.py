@@ -49,11 +49,12 @@ def prune(net, q, e):
     edge_prune(net, q, e)
     return net
 
-def edge_prune(net, q, e): #TODO Update Factors see Bayes 3 slides page 28
+def edge_prune(net, e): #TODO Update Factors see Bayes 3 slides page 28
     for node in e:
         edges = net.get_children(node)
         for edge in edges:
             net.del_edge([node, edge])
+            #TODO : Update CPT
     return net
 
 def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
@@ -62,10 +63,16 @@ def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
             net.del_var(node)
     return net
 
+def factor_multiplication(net, f, g): #Bart
+    print(net.bn.get_all_cpts())
+    return True
 
-def d_blocked(net, x,y,z):
-    #for w in x:   
-    return True 
+
+def maginalization(cpt, var):
+    cpt = cpt.drop(var, axis=1) 
+    varskept = list(cpt.columns)[:-1] #Removes P from grouping
+    cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, 
+    return cpt.reset_index()
 
 
 
