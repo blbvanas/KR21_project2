@@ -66,10 +66,8 @@ def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
 def factor_multiplication(cpt1, cpt2): #Bart
     #if cpt1 == cpt2:
     #    raise Exception('Both factors are the same') 
-    cpt2 = cpt2.rename(columns={'p':'p2'}) 
+    cpt2 = cpt2.rename(columns={'p':'p2'})
     cpt = pd.merge(cpt1,cpt2)
-    
-    cpt2['Blub'] = ['blub', 'blub', 'blub', 'blub']
     cpt['p'] = cpt['p'] * cpt['p2'] 
     cpt = cpt.drop('p2', axis=1)
     return cpt
