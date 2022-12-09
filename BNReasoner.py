@@ -1,9 +1,6 @@
-import pgmpy
-import networkx as nx
 from typing import Union
 from BayesNet import BayesNet
-import pandas as pd
-import matplotlib.pyplot as plt
+import networkx as nx
 
 
 class BNReasoner:
@@ -18,24 +15,91 @@ class BNReasoner:
             self.bn.load_from_bifxml(net)
         else:
             self.bn = net
+    # TODO: This is where your methods should go
 
-net = BNReasoner("C:/Users/Ellis/Documents/VU/Knowledge Representation/KR21_project2-main/testing/dog_problem.BIFXML")
+    def sequence(self, path):
+        _x, _y, _z = path
+        A = _y in self.bn.get_children(_x)
+        B = _z in self.bn.get_children(_z)
+        return A and B 
 
-def d_seperated(model, x, y, z):
-    if nx.d_separated(model, x, y, z):
-        print("X is d-seperated of Y given Z")  #overbodig, maar meer om voor ons duidelijk te hebben als we straks een eigen bn maken
+    def fork(self, path):
+        _x, _y, _z = path
+        AB =  self.bn.get_children(_y) == (_x, _z)
+        return AB
+
+    def collider(self, path):
+        _x, _y, _z = path
+        A = _y in self.bn.get_children(_x)
+        B = _y in self.bn.get_children(_z)
+        return A and B
+
+    def path_is_closed(self, path, z):
+        if self.sequence(path):
+            if z == path[1]:
+                return True
+            else:
+                return False
+        elif self.fork(path):
+            if z == path[1]:
+                return True
+            else:
+                return False
+        elif self.collider(path):
+            if z not in path:
+                return True
+            else:
+                return False
+
+    def d_seperated(self, x, y, evidence):
+        graph = self.bn.get_interaction_graph()
+        all_paths = list(nx.algorithms.all_simple_paths(graph, x, y))
+        for path in all_paths:
+            if not self.path_is_closed(path, evidence):
+                print ("{x} is not d-seperated from {y} given {evidence}")
+                return False
+        print ("{x} is d-seperated from {y} given {evidence}")
         return True
-    else:
-        print("X is not d-seperated of Y given Z") # same here
-        return False
 
-def independent(model, x, y, z):
-    if d_seperated(model, x, y, z) is True:
-        print("X is independent of Y given Z") #same here
-        return True
-    else:
-        print("X is dependent of Y given Z") #same here
-        return False
+    def independent(self, x, y, z):
+        return self.d_seperated(x, y, z)
+
+
+
+#Pruning
+def prune(net, q, e):
+    node_prune(net, q, e)
+    edge_prune(net, q, e)
+    return net
+
+def edge_prune(net, q, e): #TODO Update Factors see Bayes 3 slides page 28
+    for node in e:
+        edges = net.get_children(node)
+        for edge in edges:
+            net.del_edge([node, edge])
+    return net
+
+def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
+    for node in BayesNet.get_all_variables(net):
+        if node not in q and node not in e:
+            net.del_var(node)
+    return net
+
+
+#def marginalization(net, variables):
+#    cpt = net.get_all_cpts()
+#    print(cpt)
+#    for variable in factor:
+
+    #totalp = sum(cpt["p"]) 
+
+    
+    #for variable in distribution:
+    #    if variable != target_node:
+    #       cpt = net.get_cpt(variable) 
+    #       totalp = sum(cpt['p'])
+
+
 
 def min_degree_heuristic(graph):
     nx.approximation.treewidth_min_degree(graph)
@@ -44,3 +108,7 @@ def min_degree_heuristic(graph):
 def min_fill_heur(graph):
     print(nx.approximation.treewidth_min_fill_in(graph))
     return graph
+
+
+net = BNReasoner("C:/Users/Ellis/Documents/VU/Knowledge Representation/KR21_project2-main/testing/dog_problem.BIFXML")
+#marginalization(net.bn, [], [])
