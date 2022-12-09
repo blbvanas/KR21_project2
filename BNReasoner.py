@@ -19,8 +19,6 @@ class BNReasoner:
         else:
             self.bn = net
 
-net = BNReasoner("C:/Users/Ellis/Documents/VU/Knowledge Representation/KR21_project2-main/testing/dog_problem.BIFXML")
-
 def d_seperated(model, x, y, z):
     if nx.d_separated(model, x, y, z):
         print("X is d-seperated of Y given Z")  #overbodig, maar meer om voor ons duidelijk te hebben als we straks een eigen bn maken
@@ -44,3 +42,31 @@ def min_degree_heuristic(graph):
 def min_fill_heur(graph):
     print(nx.approximation.treewidth_min_fill_in(graph))
     return graph
+
+#Pruning
+def prune(net, q, e):
+    node_prune(net, q, e)
+    edge_prune(net, q, e)
+    return net
+
+def edge_prune(net, q, e): #TODO Update Factors see Bayes 3 slides page 28
+    for node in e:
+        edges = net.get_children(node)
+        for edge in edges:
+            net.del_edge([node, edge])
+    return net
+
+def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
+    for node in BayesNet.get_all_variables(net):
+        if node not in q and node not in e:
+            net.del_var(node)
+    return net
+
+
+def d_blocked(net, x,y,z):
+    #for w in x:   
+    return True 
+
+
+
+net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
