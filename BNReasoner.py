@@ -45,8 +45,9 @@ def min_fill_heur(graph):
 
 #Pruning
 def prune(net, q, e):
+    edge_prune(net, e)
     node_prune(net, q, e)
-    edge_prune(net, q, e)
+
     return net
 
 def edge_prune(net, e): #TODO Update Factors see Bayes 3 slides page 28
@@ -54,7 +55,9 @@ def edge_prune(net, e): #TODO Update Factors see Bayes 3 slides page 28
         edges = net.get_children(node)
         for edge in edges:
             net.del_edge([node, edge])
-            #TODO : Update CPT
+            cpt = net.get_cpt(edge)
+            newcpt = net.reduce_factor(e, cpt)
+            net.update_cpt(edge, newcpt)
     return net
 
 def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
@@ -71,7 +74,7 @@ def factor_multiplication(cpt1, cpt2): #Bart
     cpt['p'] = cpt['p'] * cpt['p2'] 
     cpt = cpt.drop('p2', axis=1)
     return cpt
-
+ 
 
 def maginalization(cpt, var):
     cpt = cpt.drop(var, axis=1) 
