@@ -15,7 +15,6 @@ class BNReasoner:
             self.bn.load_from_bifxml(net)
         else:
             self.bn = net
-    # TODO: This is where your methods should go
 
     def sequence(self, path):
         #code for sequence
@@ -55,15 +54,27 @@ class BNReasoner:
             else:
                 return False
 
+    def get_paths(self, root, leaf):
+        graph = self.bn.structure.copy()
+        roots = []
+        leaves = []
+        for node in graph.nodes :
+            if graph.in_degree(node) == 0: 
+                roots.append(node)
+            elif graph.out_degree(node) == 0:
+                leaves.append(node)
+        for root in roots:
+            for leaf in leaves:
+                all_paths = list(nx.algorithms.all_simple_paths(graph, root, leaf))
+        return all_paths
+
     def d_seperated(self, x, y, evidence):
         #apply path_is_closed function on the input variables and see whether x is seperated from y given evidence. 
-        graph = self.bn.get_interaction_graph()
-        all_paths = list(nx.algorithms.all_simple_paths(graph, x, y))
-        for path in all_paths:
+        for path in self.get_paths(x, y):
             if not self.path_is_closed(path, evidence):
-                print ("{x} is not d-seperated from {y} given {evidence}")
+                print (f"{x} is not d-seperated from {y} given {evidence}")
                 return False
-        print ("{x} is d-seperated from {y} given {evidence}")
+        print (f"{x} is d-seperated from {y} given {evidence}")
         return True
 
     def independent(self, x, y, z):
@@ -85,7 +96,7 @@ class BNReasoner:
         
         #which node has the least amount of edges and put it in elimination order
         for j in range(len(x)):
-            next_node = min(nodes.keys(), key = lambda i: nodes[i])
+            next_node = min(nodes.keys(), key = lambda j: nodes[j])
             nodes.pop(next_node)
             elimination_order.append(next_node)
 
@@ -98,8 +109,7 @@ class BNReasoner:
         #look for all neighbours and add an edge if necessary
         for pos in list(combinations(neighbours, 2)):
             if not graph.has_edge(pos[0], pos[1]):
-                graph.add_edge(pos[0], pos[1])
-        
+                graph.add_edge(pos[0], pos[1])     
         return elimination_order
 
 
@@ -126,27 +136,86 @@ class BNReasoner:
             elimination_order.append(next_node)
             #delete this node and start again with the next node
             dict_edges.pop(next_node)
-
         return elimination_order
 
+    def ordering(self, heuristic):
+        if heuristic == "min-degree":
+            self.min_degree
+        elif heuristic == "min-fill":
+            self.min_fill
+        else:
+            raise TypeError("Give the right heuristic, either min-degree or min-fill")
+
+    def prune(self, q, e):
+        self.node_prune(q, e)
+        self.edge_prune(q, e)
+        return self
+    
+    def mpe(self, evidence):
+        #prune edges
+        pruned_net  = self.prune(self.bn.get_all_variables(), evidence)
+
+        #get elimination order
+        elimination_order = self.min_fill(pruned_net)
+
+        #get all cpts from pruned network
+        cpts = pruned_net.get_all_cpts(pruned_net)
+
+        for variable in elimination_order:
+            factor = [key for key, cpt in cpts.items() if variable in cpt.columns]
+            factors_cpt = [cpts[key] for key in factor]
+
+            factors_mult = self.multiply_factors(factors_cpt)
+            
+            factors_max = self.max_out()
+
+
+        pass
+
+
+
+
+
+        # query = self.bn.get_all_variables()
+
+        # var_pruned = self.prune(query, evidence)
+
+        # cpts = var_pruned.get_all_cpts()
+
+        # order = ordering("min-fill")
+        # for var in order:
+        #     fac = []
+        #     delete = []
+        #     # get factors which contain variable
+        #     for key, value in var_pruned.items():
+        #         if var in value.columns:
+        #             fac.append(value)
+        #             delete.append(key)
+
+        #     factor, rowsmult = self.multiply_factors(fac)
+        #     rows_multiplied += rowsmult
+
+        #     for variables in delete:
+        #         del cpts[variables]
+
+            
+
+
 #Pruning
-def prune(net, q, e):
-    node_prune(net, q, e)
-    edge_prune(net, q, e)
-    return net
 
-def edge_prune(net, q, e): #TODO Update Factors see Bayes 3 slides page 28
-    for node in e:
-        edges = net.get_children(node)
-        for edge in edges:
-            net.del_edge([node, edge])
-    return net
 
-def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
-    for node in BayesNet.get_all_variables(net):
-        if node not in q and node not in e:
-            net.del_var(node)
-    return net
+# def edge_prune(net, q, e): #TODO Update Factors see Bayes 3 slides page 28
+#     for node in e:
+#         edges = net.get_children(node)
+#         for edge in edges:
+#             net.del_edge([node, edge])
+#     return net
+
+# def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
+#     for node in BayesNet.get_all_variables(net):
+#         if node not in q and node not in e:
+#             net.del_var(node)
+#     return net
 
 
 #def marginalization(net, variables):
@@ -163,4 +232,56 @@ def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
     #       totalp = sum(cpt['p'])
 
 
-#marginalization(net.bn, [], [])
+
+def test_function(filename, var1, var2, Q, e):
+    BNR = BNReasoner(filename)
+    TestBN = BNR.bn
+
+    #test pruning
+
+
+    #test d-sep
+    # x = ["Winter?"]
+    # y = ["Wet Grass?"]
+    # z = ["Winter?"]
+
+    # dsep = BNR.d_seperated(x, y, z)
+    # print(dsep)
+
+    # x = ['bowel-problem']
+    # z = ['dog-out']
+    # y = ['family-out']
+    # d_separated = BNR.d_seperated(x, y, z)
+    # print(d_separated)
+
+    #test indep
+    # x = ['bowel-problem']
+    # z = ['dog-out']
+    # y = ['family-out']
+    # independent = BNR.independent(x, y, z)
+
+    #test marg
+
+    #test max-out
+
+    #test fac mul
+
+    #test order
+    # mindegree = BNR.min_degree(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+    # minfill = BNR.min_fill(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+
+    # print(mindegree)
+    # print(minfill)
+
+    #test var elim
+
+    #test marg distr
+
+    #test mpe
+
+    #test map
+filename_dog = 'testing/dog_problem.BIFXML'
+filename_lec1 = 'testing/lecture_example.BIFXML'
+
+BN_dog = test_function(filename = filename_lec1, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
+
