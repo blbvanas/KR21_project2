@@ -4,7 +4,7 @@ from typing import Union
 from BayesNet import BayesNet
 import pandas as pd
 import matplotlib.pyplot as plt
-from itertools import combinations
+import itertools
 
 
 class BNReasoner:
@@ -117,7 +117,7 @@ class BNReasoner:
         graph.remove_node(next_node)
 
         #look for all neighbours and add an edge if necessary
-        for pos in list(combinations(neighbours, 2)):
+        for pos in list(itertools.combinations(neighbours, 2)):
             if not graph.has_edge(pos[0], pos[1]):
                 graph.add_edge(pos[0], pos[1])
         
@@ -138,7 +138,7 @@ class BNReasoner:
             for node in dict_edges.keys():
                 neighbours = list(graph.neighbors(node))
                 #add number of edges to dictionary
-                for pos in list(combinations(neighbours, 2)):
+                for pos in list(itertools.combinations(neighbours, 2)):
                     if not graph.has_edge(pos[0], pos[1]):
                         dict_edges[node] += 1
             #which node has the fewest edges
@@ -150,14 +150,24 @@ class BNReasoner:
 
         return elimination_order
 
+
+    #Pruning
+    def prune(self, query, evidence):
+        self.edge_prune(evidence)
+        self.node_prune(query, evidence)
+        return net
+
     def edge_prune(self, e): 
-        for node in e:
+        for node in e.index:
+            cpt = self.bn.get_cpt(node)
             edges = self.bn.get_children(node)
-            for edge in edges:
+            newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True) #Gets the rows where evidence value is the same as cpt
+            self.bn.update_cpt(node, newcpt) #Updates cpt to these new rows
+            for edge in edges: #for children of the nodes
                 self.bn.del_edge([node, edge])
                 cpt = self.bn.get_cpt(edge)
-                newcpt = self.bn.reduce_factor(e, cpt)
-                newcpt = self.bn.update_cpt(edge, newcpt)
+                newcpt = cpt[e[node]== cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
+                self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
         return self
 
     def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
@@ -167,23 +177,37 @@ class BNReasoner:
         return self
 
 
-    #Pruning
-    def prune(self, q, e):
-        self.edge_prune(e)
-        self.node_prune(q, e)
-        return net
-
-
-
-    def factor_multiplication(self, cpt_var1, cpt_var2): #TODO: Check whether CPT's are the same
-        cpt1 = self.bn.get_cpt(cpt_var1)
+    #CPT Operations
+    def factor_multiplication(self, cpt_var1, cpt_var2): #TODO: Check whether CPTs are the same
+        #TODO: Fix step operations
+        cpt1 = self.bn.get_cpt(cpt_var1) 
         cpt2 = self.bn.get_cpt(cpt_var2)
-        
-        cpt2 = cpt2.rename(columns={'p':'p2'})
-        cpt = pd.merge(cpt1,cpt2)
-        cpt['p'] = cpt['p'] * cpt['p2'] 
-        cpt = cpt.drop('p2', axis=1)
-        return cpt
+        variables = []
+        for column in cpt1.columns:
+            variables.append(column)
+        for column in cpt2.columns:
+            variables.append(column)
+        variables = list(set(variables))
+        tflist = [1, 2]
+        tflist = list(set(tflist))
+        combi = []
+        options = itertools.permutations([True, False], len(variables))
+        for combination in options:
+            zipped = zip(variables, combination)
+            print(combination)
+            combi.append(list(zipped))
+
+        print(combi)
+        #NewCpt = pd.DataFrame()
+
+
+
+        return ''
+        #cpt2 = cpt2.rename(columns={'p':'p2'})
+        #cpt = pd.merge(cpt1,cpt2)
+        #cpt['p'] = cpt['p'] * cpt['p2'] 
+        #cpt = cpt.drop('p2', axis=1)
+        #return cpt
     
 
     def marginalization(self, cpt_var, var):
@@ -211,6 +235,22 @@ class BNReasoner:
             prev_factor = factor
         return factor
 
-net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-maxes, blub = net.maxing_out('dog-out', 'bowel-problem')
+    def ordering(self, x, heuristic):
+        if heuristic == "min-degree":
+            self.min_degree(x)
+        elif heuristic == "min-fill":
+            self.min_fill(x)
+        else:
+            raise TypeError("Give the right heuristic, either min-degree or min-fill")
 
+    
+    def mpe(self, evidence):
+        cpt = self.edge_prune(evidence)
+        print(cpt)
+
+
+
+
+net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
+maxes = net.factor_multiplication('family-out', 'bowel-problem')
+#print(maxes)
