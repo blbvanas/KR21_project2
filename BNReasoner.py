@@ -268,8 +268,70 @@ class BNReasoner:
 
     
     def mpe(self, evidence):
-        cpt = self.edge_prune(evidence)
-        print(cpt)
+        #prune edges
+        pruned_net  = self.prune(self.bn.get_all_variables(), evidence)
+
+        #get elimination order
+        elimination_order = self.min_fill(pruned_net)
+
+        #get all cpts from pruned network
+        cpts = pruned_net.get_all_cpts(pruned_net)
+
+        for variable in elimination_order:
+            factor = [key for key, cpt in cpts.items() if variable in cpt.columns]
+            factors_cpt = [cpts[key] for key in factor]
+
+            factors_mult = self.multiply_factors(factors_cpt)
+            
+            factors_max = self.max_out()
+
+        pass
+
+def test_function(filename, var1, var2, Q, e):
+    BNR = BNReasoner(filename)
+    TestBN = BNR.bn
+
+    #test pruning
+
+
+    #test d-sep
+    # x = ["Winter?"]
+    # y = ["Wet Grass?"]
+    # z = ["Winter?"]
+
+    # dsep = BNR.d_seperated(x, y, z)
+    # print(dsep)
+
+    # x = ['bowel-problem']
+    # z = ['dog-out']
+    # y = ['family-out']
+    # d_separated = BNR.d_seperated(x, y, z)
+    # print(d_separated)
+
+    #test indep
+    # x = ['bowel-problem']
+    # z = ['dog-out']
+    # y = ['family-out']
+    # independent = BNR.independent(x, y, z)
+
+    #test marg
+
+    #test max-out
+
+    #test fac mul
+
+    #test order
+    # mindegree = BNR.min_degree(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+    # minfill = BNR.min_fill(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+
+    # print(mindegree)
+    # print(minfill)
+
+    #test var elim
+
+    #test marg distr
+
+    #test mpe
 
 
 
