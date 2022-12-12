@@ -2,10 +2,14 @@ import pgmpy
 import networkx as nx
 from typing import Union
 from BayesNet import BayesNet
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+from pandas.core.common import SettingWithCopyWarning
+warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
 import pandas as pd
 import matplotlib.pyplot as plt
 import itertools
-
+import numpy as np
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -178,37 +182,56 @@ class BNReasoner:
 
 
     #CPT Operations
-    def factor_multiplication(self, cpt_var1, cpt_var2): #TODO: Check whether CPTs are the same
-        #TODO: Fix step operations
+    def factor_multiplication(self, cpt_var1, cpt_var2):
         cpt1 = self.bn.get_cpt(cpt_var1) 
         cpt2 = self.bn.get_cpt(cpt_var2)
+        
+        if str(cpt1.columns) == str(cpt2.columns): #Avoid multiplying with itself
+            return cpt1
+
         variables = []
-        for column in cpt1.columns:
+        for column in cpt1.columns: #Creates list with all variables in CPTs
             variables.append(column)
         for column in cpt2.columns:
             variables.append(column)
         variables = list(set(variables))
-        tflist = [1, 2]
-        tflist = list(set(tflist))
-        combi = []
-        options = itertools.permutations([True, False], len(variables))
-        for combination in options:
-            zipped = zip(variables, combination)
-            print(combination)
-            combi.append(list(zipped))
+        variables.remove('p')
+        
+        tflist = [True, False]
+        combi = [list(zip(variables, element))
+            for element in itertools.product(tflist, repeat = len(variables))] #Get all combinations of True False and variables
 
-        print(combi)
-        #NewCpt = pd.DataFrame()
+        NewCpt = pd.DataFrame(columns=variables, index=range((len(combi)))) #Put all combinations of variables in dataframe
+        i=0
+        for element in combi: 
+            for key, value in element:   
+                NewCpt[key][i] = value   
+            i+=1
+        NewCpt['p'] = np.zeros(i)
+        
+        var1 = set(variables).intersection(cpt1)   #Gets variables that are in cpt1
+        var2 = set(variables).intersection(cpt2)   #Gets variables in cpt2
 
+            
+        for j in range(i):
+            checklist1 = []
+            checklist2 = []
+            for v1 in var1:
+                check = NewCpt.loc[j, v1] #Gets value for variable in newCpt
+                checklist1.append("(cpt1["+'"' + str(v1) +'"'+ ']' + '==' + str(check)+ ')') #Creates a query to find value in cpt1
+            row = cpt1.loc[eval(' & '.join(checklist1))].reset_index() #Queries cpt1 to find row given values in newcpt
+            p1 = (row['p'][0]) #Gets p value from row
+            
+            for v2 in var2: #Same for cpt2
+                check = NewCpt.loc[j, v2] 
+                checklist2.append("(cpt2["+'"' + str(v2) +'"'+ ']' + '==' + str(check)+ ')')
+            row = cpt2.loc[eval(' & '.join(checklist2))].reset_index() 
 
+            p2 = (row['p'][0]) 
+            NewCpt['p'][j] = p1*p2 #adds P1 * P2 to the newcpt
+        
+        return NewCpt
 
-        return ''
-        #cpt2 = cpt2.rename(columns={'p':'p2'})
-        #cpt = pd.merge(cpt1,cpt2)
-        #cpt['p'] = cpt['p'] * cpt['p2'] 
-        #cpt = cpt.drop('p2', axis=1)
-        #return cpt
-    
 
     def marginalization(self, cpt_var, var):
         cpt = self.bn.get_cpt(cpt_var)
@@ -252,5 +275,7 @@ class BNReasoner:
 
 
 net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-maxes = net.factor_multiplication('family-out', 'bowel-problem')
+maxes = net.factor_multiplication('family-out', 'hear-bark')
+print(maxes)
+#net.bn.draw_structure()
 #print(maxes)
