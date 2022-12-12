@@ -4,6 +4,7 @@ from typing import Union
 from BayesNet import BayesNet
 import pandas as pd
 import matplotlib.pyplot as plt
+from itertools import combinations
 
 
 class BNReasoner:
@@ -18,6 +19,24 @@ class BNReasoner:
             self.bn.load_from_bifxml(net)
         else:
             self.bn = net
+
+    def maxing_out(self, cpt_var, var): #Bart
+        cpt = self.bn.get_cpt(cpt_var)
+        if var not in list(cpt.columns):
+            return ("Var not in cpt")
+        othervars = list(cpt.columns)[:-1] #Gets columns without p
+        othervars.remove(var)
+        group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max'])
+        
+        values = []
+        for location in group['idxmax']:
+            max = cpt[var][location]
+            values.append(max)
+        varvalues = pd.DataFrame()
+        varvalues[var] = values
+        group = group.drop('idxmax', axis=1)
+        return group.reset_index(), varvalues
+
 
     def sequence(self, path):
         #code for sequence
@@ -131,46 +150,67 @@ class BNReasoner:
 
         return elimination_order
 
-#Pruning
-def prune(net, q, e):
-    edge_prune(net, e)
-    node_prune(net, q, e)
-    return net
+    def edge_prune(self, e): 
+        for node in e:
+            edges = self.bn.get_children(node)
+            for edge in edges:
+                self.bn.del_edge([node, edge])
+                cpt = self.bn.get_cpt(edge)
+                newcpt = self.bn.reduce_factor(e, cpt)
+                newcpt = self.bn.update_cpt(edge, newcpt)
+        return self
 
-def edge_prune(net, e): 
-    for node in e:
-        edges = net.get_children(node)
-        for edge in edges:
-            net.del_edge([node, edge])
-            cpt = net.get_cpt(edge)
-            newcpt = net.reduce_factor(e, cpt)
-            net.update_cpt(edge, newcpt)
-    return net
+    def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
+        for node in self.bn.get_all_variables():
+            if node not in q and node not in e:
+                self.bn.del_var(node)
+        return self
 
-def node_prune(net, q, e): #Performs Node Pruning given query q and evidence e
-    for node in BayesNet.get_all_variables(net):
-        if node not in q and node not in e:
-            net.del_var(node)
-    return net
 
-def factor_multiplication(cpt1, cpt2): #TODO: Check whether CPT's are the same
-    cpt2 = cpt2.rename(columns={'p':'p2'})
-    cpt = pd.merge(cpt1,cpt2)
-    cpt['p'] = cpt['p'] * cpt['p2'] 
-    cpt = cpt.drop('p2', axis=1)
-    return cpt
- 
+    #Pruning
+    def prune(self, q, e):
+        self.edge_prune(e)
+        self.node_prune(q, e)
+        return net
 
-def maginalization(cpt, var):
-    cpt = cpt.drop(var, axis=1) 
-    varskept = list(cpt.columns)[:-1] #Removes P from grouping
-    cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
-    return cpt.reset_index()
 
-def maxing_out(): #Bart
-    return True
+
+    def factor_multiplication(self, cpt_var1, cpt_var2): #TODO: Check whether CPT's are the same
+        cpt1 = self.bn.get_cpt(cpt_var1)
+        cpt2 = self.bn.get_cpt(cpt_var2)
+        
+        cpt2 = cpt2.rename(columns={'p':'p2'})
+        cpt = pd.merge(cpt1,cpt2)
+        cpt['p'] = cpt['p'] * cpt['p2'] 
+        cpt = cpt.drop('p2', axis=1)
+        return cpt
+    
+
+    def marginalization(self, cpt_var, var):
+        cpt = self.bn.get_cpt(cpt_var)
+        cpt = cpt.drop(var, axis=1) 
+        varskept = list(cpt.columns)[:-1] #Removes P from grouping
+        cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
+        return cpt.reset_index()
+
+
+    def variable_elimination(self, q: list):
+        #x = ordering()
+        x = self.prune(net, q, [])
+        factor, prev_factor = {}, {}
+        query = set(self.bn.get_all_variables()).symmetric_difference(set(q))
+        for v in query:
+            factor = self.bn.get_cpt(v)
+            to_sum_out = set(factor.keys()).difference(set([v]))
+            if len(to_sum_out) > 1:
+                for s in to_sum_out:
+                    if s != 'p':
+                        factor = self.marginalization(factor, s)
+            if len(prev_factor): 
+                factor = self.factor_multiplication(factor, prev_factor)
+            prev_factor = factor
+        return factor
 
 net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-cpt1 = net.bn.get_cpt('light-on')
-cpt2 = net.bn.get_cpt('family-out')
+maxes, blub = net.maxing_out('dog-out', 'bowel-problem')
 
