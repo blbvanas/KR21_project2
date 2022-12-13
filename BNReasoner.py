@@ -4,8 +4,8 @@ from typing import Union
 from BayesNet import BayesNet
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-from pandas.core.common import SettingWithCopyWarning
-warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+# from pandas.core.common import SettingWithCopyWarning
+# warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
 import pandas as pd
 import matplotlib.pyplot as plt
 import itertools
@@ -80,15 +80,27 @@ class BNReasoner:
             else:
                 return False
 
+    def get_paths(self, root, leaf):
+        graph = self.bn.structure.copy()
+        roots = []
+        leaves = []
+        for node in graph.nodes :
+            if graph.in_degree(node) == 0: 
+                roots.append(node)
+            elif graph.out_degree(node) == 0:
+                leaves.append(node)
+        for root in roots:
+            for leaf in leaves:
+                all_paths = list(nx.algorithms.all_simple_paths(graph, root, leaf))
+        return all_paths
+
     def d_seperated(self, x, y, evidence):
         #apply path_is_closed function on the input variables and see whether x is seperated from y given evidence. 
-        graph = self.bn.get_interaction_graph()
-        all_paths = list(nx.algorithms.all_simple_paths(graph, x, y))
-        for path in all_paths:
+        for path in self.get_paths(x, y):
             if not self.path_is_closed(path, evidence):
-                print ("{x} is not d-seperated from {y} given {evidence}")
+                print (f"{x} is not d-seperated from {y} given {evidence}")
                 return False
-        print ("{x} is d-seperated from {y} given {evidence}")
+        print (f"{x} is d-seperated from {y} given {evidence}")
         return True
 
     def independent(self, x, y, z):
@@ -154,23 +166,23 @@ class BNReasoner:
 
         return elimination_order
 
-
-    #Pruning
-    def prune(self, query, evidence):
-        self.edge_prune(evidence)
-        self.node_prune(query, evidence)
-        return net
-
     def edge_prune(self, e): 
+        for node in e.index:
+            edges = self.bn.get_children(node)
+            for edge in edges: #for children of the nodes
+                self.bn.del_edge([node, edge])
+        self.prune_cpt_updater(e)
+        return self
+
+    def prune_cpt_updater(self, e):
         for node in e.index:
             cpt = self.bn.get_cpt(node)
             edges = self.bn.get_children(node)
             newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True) #Gets the rows where evidence value is the same as cpt
             self.bn.update_cpt(node, newcpt) #Updates cpt to these new rows
             for edge in edges: #for children of the nodes
-                self.bn.del_edge([node, edge])
                 cpt = self.bn.get_cpt(edge)
-                newcpt = cpt[e[node]== cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
+                newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
                 self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
         return self
 
@@ -179,6 +191,7 @@ class BNReasoner:
             if node not in q and node not in e:
                 self.bn.del_var(node)
         return self
+
 
 
     #CPT Operations
@@ -275,15 +288,16 @@ class BNReasoner:
         elimination_order = self.min_fill(pruned_net)
 
         #get all cpts from pruned network
-        cpts = pruned_net.get_all_cpts(pruned_net)
+        cpts = self.bn.get_all_cpts(pruned_net)
 
-        for variable in elimination_order:
-            factor = [key for key, cpt in cpts.items() if variable in cpt.columns]
-            factors_cpt = [cpts[key] for key in factor]
 
-            factors_mult = self.multiply_factors(factors_cpt)
+        # for variable in elimination_order:
+        #     factor = [key for key, cpt in cpts.items() if variable in cpt.columns]
+        #     factors_cpt = [cpts[key] for key in factor]
+
+        #     factors_mult = self.factor_multiplication(factors_cpt, )
             
-            factors_max = self.max_out()
+            # factors_max = self.max_out()
 
         pass
 
@@ -292,7 +306,13 @@ def test_function(filename, var1, var2, Q, e):
     TestBN = BNR.bn
 
     #test pruning
+    x = {'dog-out'}
 
+    y = {'bowel-problem'}
+    z = {'dog-out': True}
+
+    prune = BNR.prune(x, y)
+    print(prune)
 
     #test d-sep
     # x = ["Winter?"]
@@ -332,12 +352,14 @@ def test_function(filename, var1, var2, Q, e):
     #test marg distr
 
     #test mpe
+filename_dog = 'testing/dog_problem.BIFXML'
+filename_lec1 = 'testing/lecture_example.BIFXML'
+
+BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
+print(BN_dog)
 
 
+# net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
+# maxes = net.factor_multiplication('family-out', 'hear-bark')
+# print(maxes)
 
-
-net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-maxes = net.factor_multiplication('family-out', 'hear-bark')
-print(maxes)
-#net.bn.draw_structure()
-#print(maxes)
