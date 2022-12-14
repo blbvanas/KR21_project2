@@ -252,43 +252,56 @@ class BNReasoner:
         
         return NewCpt
 
-
-    def marginalization(self, cpt_var, var):
-        cpt = self.bn.get_cpt(cpt_var)
+    def marginalization(self, cpt, var):
         cpt = cpt.drop(var, axis=1) 
         varskept = list(cpt.columns)[:-1] #Removes P from grouping
         cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
         return cpt.reset_index()
 
 
-    def variable_elimination(self, q: list):
-        #x = ordering()
-        x = self.prune(self, q, [])
-        factor, prev_factor = {}, {}
-        query = set(self.bn.get_all_variables()).symmetric_difference(set(q))
-        for v in query:
-            factor = self.bn.get_cpt(v)
-            to_sum_out = set(factor.keys()).difference(set([v]))
-            if len(to_sum_out) > 1:
-                for s in to_sum_out:
-                    if s != 'p':
-                        factor = self.marginalization(factor, s)
-            if len(prev_factor): 
-                factor = self.factor_multiplication(factor, prev_factor)
-            prev_factor = factor
-        return factor
 
    # def marginal_distribution
-
     def ordering(self, x, heuristic):
         if heuristic == "min-degree":
-            self.min_degree(x)
+            return self.min_degree(x)
         elif heuristic == "min-fill":
-            self.min_fill(x)
+            return self.min_fill(x)
         else:
             raise TypeError("Give the right heuristic, either min-degree or min-fill")
+            return None
 
-    
+
+    def variable_elimination(self, q: list, heuristic = 'min-degree'):
+        # All the factors relevant to the problem
+        dependencies = list(set(self.get_parents(q) + q))
+        dependencies = self.ordering(dependencies, heuristic)
+
+        factor, final_factor = pd.DataFrame(), pd.DataFrame()
+
+        first_iter = True
+        for f in dependencies:
+
+            if not first_iter:
+                factor = self.bn.get_cpt(f)
+                final_factor = self.factor_multiplication(factor, final_factor)
+
+            factor = self.bn.get_cpt(f)
+            for p in list(factor.columns)[:-1]:
+                if (p not in q) and (p != f):
+                    factor = self.marginalization(factor, p)
+            
+            if first_iter:
+                final_factor = factor
+                first_iter = False
+
+        for p in list(final_factor.columns)[:-1]:
+            if (p not in q):
+                final_factor = self.marginalization(final_factor, p)
+        
+        return final_factor
+
+
+
     def mpe(self, evidence):
         #prune edges
         pruned_net  = self.prune(self.bn.get_all_variables(), evidence)
@@ -320,7 +333,13 @@ class BNReasoner:
             ancestors = (self.bn.get_parents(var))
             for parent in ancestors:
                 parents.append(parent)
+        for parent in parents:
+            if len(self.bn.get_parents) == 0:
+                parents.remove(parent)
         return list(set(parents))
+
+ #   def marginal_distribution(self, query, evidence):
+
 
 def test_function(filename, var1, var2, Q, e):
     BNR = BNReasoner(filename)
@@ -393,8 +412,7 @@ def test_function(filename, var1, var2, Q, e):
 net = BNReasoner('testing/dog_problem.BIFXML')
 #print(net.get_paths('family-out', 'bowel-problem'))
 #print(net.get_paths(['family-out'], ['bowel-problem']))
-net.bn.draw_structure()
-print(net.get_parents(['bowel-problem', 'dog-out']))
 
+print(net.factor_multiplication()
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
