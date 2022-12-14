@@ -1,4 +1,3 @@
-import pgmpy
 import networkx as nx
 from typing import Union
 from BayesNet import BayesNet
@@ -80,18 +79,45 @@ class BNReasoner:
             else:
                 return False
 
+
+    def get_paths(self, root, leaf): #TODO Get_paths
+        graph = self.bn.structure
+        for node in root:
+            for l in leaf:
+                all_paths = list(nx.algorithms.all_simple_paths(graph, node, l))
+        for path in all_paths:
+            for node in path:
+                children = self.bn.get_children(node)
+                parents = self.bn.get_parents(node)
+                
+                
+
     def get_paths(self, root, leaf):
-        graph = self.bn.structure.copy()
+        graph = self.bn.structure
         roots = []
         leaves = []
-        for node in graph.nodes :
+        all_paths = []
+        for node in graph.nodes:
             if graph.in_degree(node) == 0: 
                 roots.append(node)
             elif graph.out_degree(node) == 0:
                 leaves.append(node)
         for root in roots:
             for leaf in leaves:
-                all_paths = list(nx.algorithms.all_simple_paths(graph, root, leaf))
+                paths = nx.algorithms.all_simple_paths(graph, root, leaf)
+                for path in paths:
+                    all_paths.append(path)
+        for path in all_paths:
+            for node in range(len(path)-1):
+                children = self.bn.get_children(path[node])
+                parents = self.bn.get_children(path[node+1])
+                if path[node] in children or path[node+1] in parents:
+                    pass
+                else: #path[node] not in children & path[node] not in parents:
+                    print(path)
+                    all_paths.remove(path)
+                    break
+        print('bluuuuuuuuuuuuuuuuuuuuuub')
         return all_paths
 
     def d_seperated(self, x, y, evidence):
@@ -166,8 +192,18 @@ class BNReasoner:
 
         return elimination_order
 
+    def prune(self, query, evidence):
+        self.node_prune(query,evidence)
+        self.edge_prune(evidence)
+
+    def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
+        for node in self.bn.get_all_variables():
+            if node not in q and node not in e:
+                self.bn.del_var(node)
+        return self
+
     def edge_prune(self, e): 
-        for node in e.index:
+        for node in e.index: #Maybe keys?
             edges = self.bn.get_children(node)
             for edge in edges: #for children of the nodes
                 self.bn.del_edge([node, edge])
@@ -186,19 +222,12 @@ class BNReasoner:
                 self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
         return self
 
-    def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
-        for node in self.bn.get_all_variables():
-            if node not in q and node not in e:
-                self.bn.del_var(node)
-        return self
+
 
 
 
     #CPT Operations
-    def factor_multiplication(self, cpt_var1, cpt_var2):
-        cpt1 = self.bn.get_cpt(cpt_var1) 
-        cpt2 = self.bn.get_cpt(cpt_var2)
-        
+    def factor_multiplication(self, cpt1, cpt2):
         if str(cpt1.columns) == str(cpt2.columns): #Avoid multiplying with itself
             return cpt1
 
@@ -246,40 +275,67 @@ class BNReasoner:
         return NewCpt
 
 
-    def marginalization(self, cpt_var, var):
-        cpt = self.bn.get_cpt(cpt_var)
+    def marginalization(self, cpt, var):
         cpt = cpt.drop(var, axis=1) 
         varskept = list(cpt.columns)[:-1] #Removes P from grouping
         cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
         return cpt.reset_index()
 
-
-    def variable_elimination(self, q: list):
-        #x = ordering()
-        x = self.prune(net, q, [])
-        factor, prev_factor = {}, {}
-        query = set(self.bn.get_all_variables()).symmetric_difference(set(q))
-        for v in query:
-            factor = self.bn.get_cpt(v)
-            to_sum_out = set(factor.keys()).difference(set([v]))
-            if len(to_sum_out) > 1:
-                for s in to_sum_out:
-                    if s != 'p':
-                        factor = self.marginalization(factor, s)
-            if len(prev_factor): 
-                factor = self.factor_multiplication(factor, prev_factor)
-            prev_factor = factor
-        return factor
-
     def ordering(self, x, heuristic):
         if heuristic == "min-degree":
-            self.min_degree(x)
+            return self.min_degree(x)
         elif heuristic == "min-fill":
-            self.min_fill(x)
+            return self.min_fill(x)
         else:
             raise TypeError("Give the right heuristic, either min-degree or min-fill")
+            return None
 
-    
+    def get_parents(self, variables:list):
+        parents = []
+        for var in variables:
+            ancestors = (self.bn.get_parents(var))
+            for parent in ancestors:
+                parents.append(parent)
+        for var in parents:
+            ancestors = (self.bn.get_parents(var))
+            for parent in ancestors:
+                parents.append(parent)
+        for parent in parents:
+            if len(self.bn.get_parents(parent)) == 0:
+                parents.remove(parent)
+        return list(set(parents))
+
+
+    def variable_elimination(self, q: list, heuristic = 'min-degree'):
+        # All the factors relevant to the problem
+        dependencies = list(set(self.get_parents(q) + q))
+        dependencies = self.ordering(dependencies, heuristic)
+
+        factor, final_factor = pd.DataFrame(), pd.DataFrame()
+
+        first_iter = True
+        for f in dependencies:
+
+            if not first_iter:
+                factor = self.bn.get_cpt(f)
+                final_factor = self.factor_multiplication(factor, final_factor)
+
+            factor = self.bn.get_cpt(f)
+            for p in list(factor.columns)[:-1]:
+                if (p not in q) and (p != f):
+                    factor = self.marginalization(factor, p)
+            
+            if first_iter:
+                final_factor = factor
+                first_iter = False
+
+        for p in list(final_factor.columns)[:-1]:
+            if (p not in q):
+                final_factor = self.marginalization(final_factor, p)
+        
+        return final_factor
+
+
     def mpe(self, evidence):
         #prune edges
         pruned_net  = self.prune(self.bn.get_all_variables(), evidence)
@@ -301,65 +357,7 @@ class BNReasoner:
 
         pass
 
-def test_function(filename, var1, var2, Q, e):
-    BNR = BNReasoner(filename)
-    TestBN = BNR.bn
-
-    #test pruning
-    x = {'dog-out'}
-
-    y = {'bowel-problem'}
-    z = {'dog-out': True}
-
-    prune = BNR.prune(x, y)
-    print(prune)
-
-    #test d-sep
-    # x = ["Winter?"]
-    # y = ["Wet Grass?"]
-    # z = ["Winter?"]
-
-    # dsep = BNR.d_seperated(x, y, z)
-    # print(dsep)
-
-    # x = ['bowel-problem']
-    # z = ['dog-out']
-    # y = ['family-out']
-    # d_separated = BNR.d_seperated(x, y, z)
-    # print(d_separated)
-
-    #test indep
-    # x = ['bowel-problem']
-    # z = ['dog-out']
-    # y = ['family-out']
-    # independent = BNR.independent(x, y, z)
-
-    #test marg
-
-    #test max-out
-
-    #test fac mul
-
-    #test order
-    # mindegree = BNR.min_degree(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
-    # minfill = BNR.min_fill(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
-
-    # print(mindegree)
-    # print(minfill)
-
-    #test var elim
-
-    #test marg distr
-
-    #test mpe
-filename_dog = 'testing/dog_problem.BIFXML'
-filename_lec1 = 'testing/lecture_example.BIFXML'
-
-BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
-print(BN_dog)
-
-
-# net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-# maxes = net.factor_multiplication('family-out', 'hear-bark')
-# print(maxes)
-
+filename = './testing/dog_problem.BIFXML'
+BNR = BNReasoner(filename)
+TestBN = BNR.bn
+print(BNR.variable_elimination(['bowel-problem', 'dog-out']))
