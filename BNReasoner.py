@@ -193,9 +193,25 @@ class BNReasoner:
 
         return elimination_order
 
-    def prune(self, query, evidence):
-        self.node_prune(query,evidence)
-        self.edge_prune(evidence)
+    def edge_prune(self, e): 
+        for node in e.index:
+            edges = self.bn.get_children(node)
+            for edge in edges: #for children of the nodes
+                self.bn.del_edge([node, edge])
+        self.prune_cpt_updater(e)
+        return self
+
+    def prune_cpt_updater(self, e):
+        for node in e.index:
+            cpt = self.bn.get_cpt(node)
+            edges = self.bn.get_children(node)
+            newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True) #Gets the rows where evidence value is the same as cpt
+            self.bn.update_cpt(node, newcpt) #Updates cpt to these new rows
+            for edge in edges: #for children of the nodes
+                cpt = self.bn.get_cpt(edge)
+                newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
+                self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
+        return self
 
     def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
         for node in self.bn.get_all_variables():
@@ -222,6 +238,7 @@ class BNReasoner:
                 newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
                 self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
         return self
+
 
 
 
@@ -385,6 +402,11 @@ def test_function(filename, var1, var2, Q, e):
     #test marg distr
 
     #test mpe
+filename_dog = 'testing/dog_problem.BIFXML'
+filename_lec1 = 'testing/lecture_example.BIFXML'
+
+BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
+print(BN_dog)
 
 filename_dog = 'testing/dog_problem.BIFXML'
 filename_lec1 = 'testing/lecture_example.BIFXML'
@@ -392,6 +414,9 @@ filename_lec1 = 'testing/lecture_example.BIFXML'
 #BN_dog = test_function(filename = '/home/bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML', var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
 #print(BN_dog)
 
+# net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
+# maxes = net.factor_multiplication('family-out', 'hear-bark')
+# print(maxes)
 
 net = BNReasoner('/home/bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML')
 

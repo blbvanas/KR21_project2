@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="US-ASCII"?>
+
+<!--Author: Andreas Sauter
+    Bayesian network in XMLBIF v0.3 (BayesNet Interchange Format)
+ -->
+
+<!-- DTD for the XMLBIF 0.3 format -->
+<!DOCTYPE BIF [
+	<!ELEMENT BIF ( NETWORK )*>
+	      <!ATTLIST BIF VERSION CDATA #REQUIRED>
+	<!ELEMENT NETWORK ( NAME, ( PROPERTY | VARIABLE | DEFINITION )* )>
+	<!ELEMENT NAME (#PCDATA)>
+	<!ELEMENT VARIABLE ( NAME, ( OUTCOME |  PROPERTY )* ) >
+	      <!ATTLIST VARIABLE TYPE (nature|decision|utility) "nature">
+	<!ELEMENT OUTCOME (#PCDATA)>
+	<!ELEMENT DEFINITION ( FOR | GIVEN | TABLE | PROPERTY )* >
+	<!ELEMENT FOR (#PCDATA)>
+	<!ELEMENT GIVEN (#PCDATA)>
+	<!ELEMENT TABLE (#PCDATA)>
+	<!ELEMENT PROPERTY (#PCDATA)>
+]>
+
+<BIF VERSION="0.3">
+<NETWORK>
+    <NAME>Mental Health</NAME>
+
+    <!-- Variables-->
+    <VARIABLE TYPE="nature">
+        <NAME>Depression</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+    <VARIABLE TYPE="nature">
+        <NAME>Manic Depression</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+    <VARIABLE TYPE="nature">
+        <NAME>Alcohol Abuse</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+    <VARIABLE TYPE="nature">
+        <NAME>Shift Moods</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+    <VARIABLE TYPE="nature">
+        <NAME>Stress</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+        <VARIABLE TYPE="nature">
+        <NAME>Low Self Esteem</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+        <VARIABLE TYPE="nature">
+        <NAME>Family History</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+        <VARIABLE TYPE="nature">
+        <NAME>Suicide Attempt</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+        <VARIABLE TYPE="nature">
+        <NAME>Decrease Energy</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+        <VARIABLE TYPE="nature">
+        <NAME>Bad Sleep</NAME>
+        <OUTCOME>True</OUTCOME>
+        <OUTCOME>False</OUTCOME>
+    </VARIABLE>
+
+    <!-- PCTs -->
+    <DEFINITION>
+        <FOR>Stress</FOR>
+        <TABLE>0.5 0.5</TABLE>
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Alcohol Abuse</FOR>
+        <TABLE>0.3 0.7</TABLE>
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Family History</FOR>
+        <TABLE>0.2 0.8</TABLE>
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Bad Sleep</FOR>
+        <GIVEN>Stress</GIVEN>
+        <GIVEN>Alcohol Abuse</GIVEN>
+        <TABLE>0.9 0.1 0.6 0.4 0.4 0.6 0.2 0.8</TABLE>
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Decrease Energy</FOR>
+        <GIVEN>Depression</GIVEN>
+        <GIVEN>Bad Sleep</GIVEN>
+        <TABLE>0.99 0.01 0.88 0.12 0.7 0.3 0.2 0.8</TABLE> <!-- Order: Bad Sleep, Depression, Decrease Energy-->
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Shift Moods</FOR>
+        <GIVEN>Stress</GIVEN>
+        <GIVEN>Manic Depression</GIVEN>
+        <TABLE>0.99 0.01 0.9 0.1 0.5 0.5 0.2 0.8</TABLE> <!-- Order: Manic Depression, Stress, Shift Moods-->
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Suicide Attempt</FOR>
+        <GIVEN>Depression</GIVEN>
+        <GIVEN>Manic Depression</GIVEN>
+        <TABLE>0.8 0.2 0.6 0.4 0.6 0.4 0.01 0.99 </TABLE> <!-- Order: Manic Depression, Depression, Suicide Attempt-->
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Low Self Esteem</FOR>
+        <GIVEN>Manic Depression</GIVEN>
+        <GIVEN>Depression</GIVEN>
+        <TABLE>0.99 0.01 0.7 0.3 0.7 0.3 0.35 0.75</TABLE> <!-- Order: Depression, Manic Depression, Low Self Esteem-->
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Depression</FOR>
+        <GIVEN>Stress</GIVEN>
+        <GIVEN>Alcohol Abuse</GIVEN>
+        <GIVEN>Family History</GIVEN> 
+        <TABLE>0.9 0.1 0.75 0.25 0.75 0.25 0.4 0.6 0.65 0.35 0.45 0.55 0.35 0.65 0.1 0.9</TABLE> <!-- Order: Family History, Alcohol Abuse, Stress, Depression-->
+    </DEFINITION>
+
+    <DEFINITION>
+        <FOR>Manic Depression</FOR>
+        <GIVEN>Stress</GIVEN>
+        <GIVEN>Family History</GIVEN> 
+        <GIVEN>Bad Sleep</GIVEN>
+        <TABLE>0.99 0.01 0.85 0.15 0.9 0.1 0.4 0.6 0.75 0.25 0.6 0.4 0.3 0.7 0.01 0.99</TABLE> <!-- Order: Bad Sleep, Family History, Stress, Manic Depression-->
+    </DEFINITION>
+</NETWORK>
+</BIF>
