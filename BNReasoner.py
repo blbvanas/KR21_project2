@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import itertools
 import numpy as np
+import copy
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -40,7 +41,6 @@ class BNReasoner:
         varvalues[var] = values
         group = group.drop('idxmax', axis=1)
         return group.reset_index(), varvalues
-
 
     def sequence(self, path):
         #code for sequence
@@ -80,45 +80,25 @@ class BNReasoner:
             else:
                 return False
 
-
-    def get_paths(self, root, leaf): #TODO Get_paths
-        graph = self.bn.structure
-        for node in root:
-            for l in leaf:
-                all_paths = list(nx.algorithms.all_simple_paths(graph, node, l))
-        for path in all_paths:
-            for node in path:
-                children = self.bn.get_children(node)
-                parents = self.bn.get_parents(node)
-                
-                
-
-    def get_paths(self, root, leaf):
-        graph = self.bn.structure
-        roots = []
-        leaves = []
+    def get_paths(self, root:list, leaf:list): 
+        self.bn.draw_structure()
+        graph = self.bn.get_interaction_graph()
         all_paths = []
-        for node in graph.nodes:
-            if graph.in_degree(node) == 0: 
-                roots.append(node)
-            elif graph.out_degree(node) == 0:
-                leaves.append(node)
-        for root in roots:
-            for leaf in leaves:
-                paths = nx.algorithms.all_simple_paths(graph, root, leaf)
+        for node in root: #Get all paths from each root to each leaf
+            for l in leaf:
+                paths = (list(nx.algorithms.all_simple_paths(graph, node, l)))
                 for path in paths:
-                    all_paths.append(path)
+                    all_paths.append(path) #Put all of these paths in all_paths
         for path in all_paths:
-            for node in range(len(path)-1):
-                children = self.bn.get_children(path[node])
-                parents = self.bn.get_children(path[node+1])
-                if path[node] in children or path[node+1] in parents:
-                    pass
-                else: #path[node] not in children & path[node] not in parents:
-                    print(path)
+            for node in range(len(path)-1): #For every node in a path, check if next node is either child or parent of current node
+                children = self.bn.get_children(path[node+1]) 
+                parents = self.bn.get_parents(path[node+1]) 
+                family = children + parents
+                if path[node] in family: #Checks whether next node is a child or parent of this node
+                    continue
+                elif path[node] not in family: #If next node is not a child or parent of current node, delete the path
                     all_paths.remove(path)
-                    break
-        print('bluuuuuuuuuuuuuuuuuuuuuub')
+                    break 
         return all_paths
 
     def d_seperated(self, x, y, evidence):
@@ -166,7 +146,6 @@ class BNReasoner:
         
         return elimination_order
 
-
     def min_fill(self, x: list):
         graph = self.bn.get_interaction_graph()
         elimination_order = []
@@ -193,24 +172,9 @@ class BNReasoner:
 
         return elimination_order
 
-    def edge_prune(self, e): 
-        for node in e.index:
-            edges = self.bn.get_children(node)
-            for edge in edges: #for children of the nodes
-                self.bn.del_edge([node, edge])
-        self.prune_cpt_updater(e)
-        return self
-
-    def prune_cpt_updater(self, e):
-        for node in e.index:
-            cpt = self.bn.get_cpt(node)
-            edges = self.bn.get_children(node)
-            newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True) #Gets the rows where evidence value is the same as cpt
-            self.bn.update_cpt(node, newcpt) #Updates cpt to these new rows
-            for edge in edges: #for children of the nodes
-                cpt = self.bn.get_cpt(edge)
-                newcpt = cpt[e[node]==cpt[node]].reset_index(drop=True)  #Gets the rows where evidence value is the same as cpt
-                self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
+    def prune(self, query, evidence):
+        self.node_prune(query,evidence)
+        self.edge_prune(evidence)
         return self
 
     def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
@@ -239,15 +203,8 @@ class BNReasoner:
                 self.bn.update_cpt(edge, newcpt) #Updates cpt to these new rows
         return self
 
-
-
-
-
-
     #CPT Operations
-    def factor_multiplication(self, cpt_var1, cpt_var2):
-        cpt1 = self.bn.get_cpt(cpt_var1) 
-        cpt2 = self.bn.get_cpt(cpt_var2)
+    def factor_multiplication(self, cpt1, cpt2):
         
         if str(cpt1.columns) == str(cpt2.columns): #Avoid multiplying with itself
             return cpt1
@@ -321,6 +278,8 @@ class BNReasoner:
             prev_factor = factor
         return factor
 
+   # def marginal_distribution
+
     def ordering(self, x, heuristic):
         if heuristic == "min-degree":
             self.min_degree(x)
@@ -356,12 +315,13 @@ def test_function(filename, var1, var2, Q, e):
     TestBN = BNR.bn
 
     #test pruning
-    net.bn.draw_structure()
-    prune = BNR.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
-    net.bn.draw_structure()
+    BNR.bn.draw_structure()
+    testbnr = copy.deepcopy(BNR)
+    testbnr.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
+    testbnr.bn.draw_structure()
 
     #test multiplication
-    multiplication_cpt = BNR.factor_multiplication('family-out', 'hear-bark')
+    multiplication_cpt = BNR.factor_multiplication(BNR.bn.get_cpt('family-out'), BNR.bn.get_cpt('hear-bark'))
     print(multiplication_cpt)
 
     #test d-sep
@@ -402,14 +362,14 @@ def test_function(filename, var1, var2, Q, e):
     #test marg distr
 
     #test mpe
-filename_dog = 'testing/dog_problem.BIFXML'
-filename_lec1 = 'testing/lecture_example.BIFXML'
+#filename_dog = 'testing/dog_problem.BIFXML'
+#filename_lec1 = 'testing/lecture_example.BIFXML'
 
-BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
-print(BN_dog)
+#BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
+#print(BN_dog)
 
-filename_dog = 'testing/dog_problem.BIFXML'
-filename_lec1 = 'testing/lecture_example.BIFXML'
+#filename_dog = 'testing/dog_problem.BIFXML'
+#filename_lec1 = 'testing/lecture_example.BIFXML'
 
 #BN_dog = test_function(filename = '/home/bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML', var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
 #print(BN_dog)
@@ -418,11 +378,8 @@ filename_lec1 = 'testing/lecture_example.BIFXML'
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
 
-net = BNReasoner('/home/bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML')
-
-print(net.get_paths('family-out', 'bowel-problem'))
-net.bn.draw_structure()
-prune = net.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
-print(net.get_paths('family-out', 'bowel-problem'))
+net = BNReasoner('testing/dog_problem.BIFXML')
+#print(net.get_paths('family-out', 'bowel-problem'))
+print(net.get_paths(['family-out'], ['bowel-problem']))
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
