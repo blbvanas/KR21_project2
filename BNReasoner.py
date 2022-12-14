@@ -310,6 +310,18 @@ class BNReasoner:
 
         pass
 
+    def get_parents(self, variables:list):
+        parents = []
+        for var in variables:
+            ancestors = (self.bn.get_parents(var))
+            for parent in ancestors:
+                parents.append(parent)
+        for var in parents:
+            ancestors = (self.bn.get_parents(var))
+            for parent in ancestors:
+                parents.append(parent)
+        return list(set(parents))
+
 def test_function(filename, var1, var2, Q, e):
     BNR = BNReasoner(filename)
     TestBN = BNR.bn
@@ -380,6 +392,9 @@ def test_function(filename, var1, var2, Q, e):
 
 net = BNReasoner('testing/dog_problem.BIFXML')
 #print(net.get_paths('family-out', 'bowel-problem'))
-print(net.get_paths(['family-out'], ['bowel-problem']))
+#print(net.get_paths(['family-out'], ['bowel-problem']))
+net.bn.draw_structure()
+print(net.get_parents(['bowel-problem', 'dog-out']))
+
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
