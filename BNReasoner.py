@@ -4,8 +4,8 @@ from typing import Union
 from BayesNet import BayesNet
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-# from pandas.core.common import SettingWithCopyWarning
-# warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+from pandas.core.common import SettingWithCopyWarning
+warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
 import pandas as pd
 import matplotlib.pyplot as plt
 import itertools
@@ -187,7 +187,7 @@ class BNReasoner:
 
     def prune(self, query, evidence):
         self.node_prune(query,evidence)
-        self.edge_prune(evidence)
+        self.edge_prune(query, evidence)
         return self
 
     def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
@@ -196,11 +196,12 @@ class BNReasoner:
                 self.bn.del_var(node)
         return self
 
-    def edge_prune(self, e): 
+    def edge_prune(self, q, e): 
         for node in e.index: #Maybe keys?
             edges = self.bn.get_children(node)
             for edge in edges: #for children of the nodes
-                self.bn.del_edge([node, edge])
+                if edge not in q:
+                    self.bn.del_edge([node, edge])
         self.prune_cpt_updater(e)
         return self
 
@@ -219,7 +220,11 @@ class BNReasoner:
     #CPT Operations
     def factor_multiplication(self, cpt1, cpt2):
         
-        if str(cpt1.columns) == str(cpt2.columns): #Avoid multiplying with itself
+        #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt1.columns): #Avoid multiplying with itself
+        #    return cpt1
+        #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt2.columns): #Avoid multiplying with itself
+        #    return cpt2
+        if str(cpt1.columns) == str(cpt2.columns):
             return cpt1
 
         variables = []
@@ -241,10 +246,9 @@ class BNReasoner:
                 NewCpt[key][i] = value   
             i+=1
         NewCpt['p'] = np.zeros(i)
-        
+
         var1 = set(variables).intersection(cpt1)   #Gets variables that are in cpt1
         var2 = set(variables).intersection(cpt2)   #Gets variables in cpt2
-
             
         for j in range(i):
             checklist1 = []
@@ -253,25 +257,30 @@ class BNReasoner:
                 check = NewCpt.loc[j, v1] #Gets value for variable in newCpt
                 checklist1.append("(cpt1["+'"' + str(v1) +'"'+ ']' + '==' + str(check)+ ')') #Creates a query to find value in cpt1
             row = cpt1.loc[eval(' & '.join(checklist1))].reset_index() #Queries cpt1 to find row given values in newcpt
-            p1 = (row['p'][0]) #Gets p value from row
-            
+
+            try:
+                p1 = (row['p'][0]) #Gets p value from row
+            except: 
+                p1 = np.nan
+
             for v2 in var2: #Same for cpt2
                 check = NewCpt.loc[j, v2] 
                 checklist2.append("(cpt2["+'"' + str(v2) +'"'+ ']' + '==' + str(check)+ ')')
             row = cpt2.loc[eval(' & '.join(checklist2))].reset_index() 
+            try:
+                p2 = (row['p'][0]) #Gets p value from row
+            except: 
+                p2 = np.nan
 
-            p2 = (row['p'][0]) 
             NewCpt['p'][j] = p1*p2 #adds P1 * P2 to the newcpt
-        
-        return NewCpt
+
+        return NewCpt.dropna(axis=0)
 
     def marginalization(self, cpt, var):
         cpt = cpt.drop(var, axis=1) 
         varskept = list(cpt.columns)[:-1] #Removes P from grouping
         cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
         return cpt.reset_index()
-
-
 
    # def marginal_distribution
     def ordering(self, x, heuristic):
@@ -283,34 +292,54 @@ class BNReasoner:
             raise TypeError("Give the right heuristic, either min-degree or min-fill")
             return None
 
-
     def variable_elimination(self, q: list, heuristic = 'min-degree'):
         # All the factors relevant to the problem
         dependencies = list(set(self.get_parents(q) + q))
         dependencies = self.ordering(dependencies, heuristic)
-
+        
         factor, final_factor = pd.DataFrame(), pd.DataFrame()
         
         for f in dependencies:
             factor = self.bn.get_cpt(f)
+            print(f)
+            print(self.bn.get_cpt(f))
+            # Multiply with roots
             for r in self.get_roots(f):
-                factor = self.factor_multiplication(factor, self.bn.get_cpt(r))
+                if r not in q:
+                    print(factor)
+                    factor = self.factor_multiplication(factor, self.bn.get_cpt(r))
 
-            for p in list(factor.columns)[:-1]:
-                if (p not in q) and (p != f):
-                    factor = self.marginalization(factor, p)
-            print(factor)
+
+            # Multiply the existing result with the next factor
             if not final_factor.empty:
                 final_factor = self.factor_multiplication(factor, final_factor)
+
+                # Marginalize variables
+                for p in list(final_factor.columns)[:-1]:
+                    if (p not in q) and (p != f):
+                        final_factor = self.marginalization(final_factor, p)
             
             if final_factor.empty:
                 final_factor = factor
-        
+
         for p in list(final_factor.columns)[:-1]:
             if (p not in q):
                 final_factor = self.marginalization(final_factor, p)
         
         return final_factor
+
+    def marginal_distribution(self, q: list, e):
+        self.prune(q, e)
+        self.bn.draw_structure()
+        distribution = pd.DataFrame()
+        for var in q:
+            cpt = self.variable_elimination([var])
+            print(cpt)
+            cpt = cpt.set_index(var)
+            distribution[var] = cpt['p']
+        distribution.index.names = ['Assignment']
+
+        return distribution
 
 
     def mpe(self, evidence):
@@ -353,14 +382,8 @@ class BNReasoner:
             if len(self.bn.get_parents(parent)) == 0:
                 roots.append(parent) 
         return roots
-        
-
-
-
-def test_function(filename, var1, var2, Q, e):
-    BNR = BNReasoner(filename)
-    TestBN = BNR.bn
-
+"""        
+def test():
     #test pruning
     net.bn.draw_structure()
     prune = BNR.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
@@ -425,9 +448,20 @@ def test_function(filename, var1, var2, Q, e):
 # print(maxes)
 
 net = BNReasoner('testing/dog_problem.BIFXML')
-print(net.get_roots('dog-out'))
+net.bn.draw_structure()
+
 #print(net.get_paths('family-out', 'bowel-problem'))
 #print(net.get_paths(['family-out'], ['bowel-problem']))
 
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
+"""
+net = BNReasoner('testing/dog_problem.BIFXML')
+net = BNReasoner('testing/dog_problem.BIFXML')
+#print(net.variable_elimination(['A']))
+#print(net.variable_elimination(['hear-bark', 'dog-out']))
+#print(net.factor_multiplication(net.variable_elimination(['hear-bark']), net.variable_elimination(['family-out'])))
+#print(net.variable_elimination(['dog-out']))
+print(net.marginal_distribution(['dog-out'], pd.Series(data={'family-out':True}, index=['family-out'])))
+
+#print(net.bn.get_cpt('B'))
