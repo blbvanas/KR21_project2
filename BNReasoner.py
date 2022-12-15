@@ -42,20 +42,33 @@ class BNReasoner:
         group = group.drop('idxmax', axis=1)
         return group.reset_index(), varvalues
 
-    def sequence(self, path):
+    def sequence(self, selected_node, x, y, z):
         #code for sequence
-        _x, _y, _z = path
-        A = _y in self.bn.get_children(_x)
-        B = _z in self.bn.get_children(_z)
-        return A and B 
+        if selected_node in x:
+            if list(y)[0] in y:
+                if selected_node in z:
+                    return True
+        return False
 
-    def fork(self, path):
+    def fork(self, selected_node, x, y, z):
         #code for fork
-        _x, _y, _z = path
-        AB =  self.bn.get_children(_y) == (_x, _z)
-        return AB
+        if x in self.bn.get_children(selected_node):
+            if y in self.bn.get_children(selected_node):
+                if selected_node in z:
+                    return True
+        return False
 
-    def collider(self, path):
+    def collider(self, graph, selected_node, x, y, z):
+        #code for collider
+        paths = self.get_paths(x, y)
+        if selected_node in paths:
+            if selected_node in paths:
+                if selected_node not in z:
+                    for descendent in nx.descendants(graph, selected_node):
+                        if descendent in z:
+                            return False
+                    return True
+
         #code for collider
         _x, _y, _z = path
         A = _y in self.bn.get_children(_x)
@@ -277,23 +290,22 @@ class BNReasoner:
         dependencies = self.ordering(dependencies, heuristic)
 
         factor, final_factor = pd.DataFrame(), pd.DataFrame()
-
-        first_iter = True
+        
         for f in dependencies:
-
-            if not first_iter:
-                factor = self.bn.get_cpt(f)
-                final_factor = self.factor_multiplication(factor, final_factor)
-
             factor = self.bn.get_cpt(f)
+            for r in self.get_roots(f):
+                factor = self.factor_multiplication(factor, self.bn.get_cpt(r))
+
             for p in list(factor.columns)[:-1]:
                 if (p not in q) and (p != f):
                     factor = self.marginalization(factor, p)
+            print(factor)
+            if not final_factor.empty:
+                final_factor = self.factor_multiplication(factor, final_factor)
             
-            if first_iter:
+            if final_factor.empty:
                 final_factor = factor
-                first_iter = False
-
+        
         for p in list(final_factor.columns)[:-1]:
             if (p not in q):
                 final_factor = self.marginalization(final_factor, p)
@@ -301,27 +313,20 @@ class BNReasoner:
         return final_factor
 
 
-
     def mpe(self, evidence):
         #prune edges
-        pruned_net  = self.prune(self.bn.get_all_variables(), evidence)
+        self.prune(self.bn.get_all_variables(), evidence)
 
         #get elimination order
-        elimination_order = self.min_fill(pruned_net)
-
-        #get all cpts from pruned network
-        cpts = self.bn.get_all_cpts(pruned_net)
-
-
-        # for variable in elimination_order:
-        #     factor = [key for key, cpt in cpts.items() if variable in cpt.columns]
-        #     factors_cpt = [cpts[key] for key in factor]
-
-        #     factors_mult = self.factor_multiplication(factors_cpt, )
-            
-            # factors_max = self.max_out()
-
-        pass
+        elimination_order = self.min_fill(self.bn.get_all_variables())
+        
+        cpt = self.variable_elimination(list(set(elimination_order) - set(list(evidence.index))))
+        
+        norm_val = self.bn.get_cpt(list(evidence.index)[0])['p'].sum()
+        
+        cpt['p'] = cpt['p'] / norm_val
+        
+        return cpt
 
     def get_parents(self, variables:list):
         parents = []
@@ -333,12 +338,23 @@ class BNReasoner:
             ancestors = (self.bn.get_parents(var))
             for parent in ancestors:
                 parents.append(parent)
+        new_parents = []
         for parent in parents:
-            if len(self.bn.get_parents) == 0:
-                parents.remove(parent)
-        return list(set(parents))
+            if len(self.bn.get_parents(parent)) == 0:
+                pass
+            else:
+                new_parents.append(parent)
+        return new_parents
 
- #   def marginal_distribution(self, query, evidence):
+    def get_roots(self, variable):
+        parents = self.bn.get_parents(variable)
+        roots = []
+        for parent in parents:
+            if len(self.bn.get_parents(parent)) == 0:
+                roots.append(parent) 
+        return roots
+        
+
 
 
 def test_function(filename, var1, var2, Q, e):
@@ -346,13 +362,12 @@ def test_function(filename, var1, var2, Q, e):
     TestBN = BNR.bn
 
     #test pruning
-    BNR.bn.draw_structure()
-    testbnr = copy.deepcopy(BNR)
-    testbnr.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
-    testbnr.bn.draw_structure()
+    net.bn.draw_structure()
+    prune = BNR.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
+    net.bn.draw_structure()
 
     #test multiplication
-    multiplication_cpt = BNR.factor_multiplication(BNR.bn.get_cpt('family-out'), BNR.bn.get_cpt('hear-bark'))
+    multiplication_cpt = BNR.factor_multiplication('family-out', 'hear-bark')
     print(multiplication_cpt)
 
     #test d-sep
@@ -410,9 +425,9 @@ def test_function(filename, var1, var2, Q, e):
 # print(maxes)
 
 net = BNReasoner('testing/dog_problem.BIFXML')
+print(net.get_roots('dog-out'))
 #print(net.get_paths('family-out', 'bowel-problem'))
 #print(net.get_paths(['family-out'], ['bowel-problem']))
 
-print(net.factor_multiplication()
 # maxes = net.factor_multiplication('family-out', 'hear-bark')
 # print(maxes)
