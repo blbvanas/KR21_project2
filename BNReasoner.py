@@ -192,7 +192,7 @@ class BNReasoner:
 
     def node_prune(self, q, e): #Performs Node Pruning given query q and evidence e
         for node in self.bn.get_all_variables():
-            if node not in q and node not in e:
+            if node not in q and node not in e and len(self.bn.get_parents(node)) != 0:
                 self.bn.del_var(node)
         return self
 
@@ -219,7 +219,7 @@ class BNReasoner:
 
     #CPT Operations
     def factor_multiplication(self, cpt1, cpt2):
-        
+
         #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt1.columns): #Avoid multiplying with itself
         #    return cpt1
         #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt2.columns): #Avoid multiplying with itself
@@ -273,7 +273,6 @@ class BNReasoner:
                 p2 = np.nan
 
             NewCpt['p'][j] = p1*p2 #adds P1 * P2 to the newcpt
-
         return NewCpt.dropna(axis=0)
 
     def marginalization(self, cpt, var):
@@ -301,12 +300,9 @@ class BNReasoner:
         
         for f in dependencies:
             factor = self.bn.get_cpt(f)
-            print(f)
-            print(self.bn.get_cpt(f))
             # Multiply with roots
             for r in self.get_roots(f):
                 if r not in q:
-                    print(factor)
                     factor = self.factor_multiplication(factor, self.bn.get_cpt(r))
 
 
@@ -329,16 +325,15 @@ class BNReasoner:
         return final_factor
 
     def marginal_distribution(self, q: list, e):
+        copynet = copy.deepcopy(self)
         self.prune(q, e)
-        self.bn.draw_structure()
         distribution = pd.DataFrame()
+        
         for var in q:
             cpt = self.variable_elimination([var])
-            print(cpt)
             cpt = cpt.set_index(var)
-            distribution[var] = cpt['p']
+            distribution[var] = cpt['p']/cpt['p'].sum()#evidencevalue
         distribution.index.names = ['Assignment']
-
         return distribution
 
 
@@ -462,6 +457,9 @@ net = BNReasoner('testing/dog_problem.BIFXML')
 #print(net.variable_elimination(['hear-bark', 'dog-out']))
 #print(net.factor_multiplication(net.variable_elimination(['hear-bark']), net.variable_elimination(['family-out'])))
 #print(net.variable_elimination(['dog-out']))
-print(net.marginal_distribution(['dog-out'], pd.Series(data={'family-out':True}, index=['family-out'])))
-
+#print(net.bn.get_cpt('dog-out'))
+#print(net.marginal_distribution(['dog-out'], pd.Series()))
+#print(net.marginal_distribution(['hear-bark'], pd.Series(data={'family-out':True, 'bowel-problem':False}, index=['family-out', 'bowel-problem'])))
+#print(net.bn.get_cpt('dog-out')['p'].sum())
+#print(net.variable_elimination(['dog-out']))
 #print(net.bn.get_cpt('B'))
