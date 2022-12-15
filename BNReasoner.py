@@ -25,22 +25,32 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def maxing_out(self, cpt_var, var): #Bart
-        cpt = self.bn.get_cpt(cpt_var)
+    def maxing_out(self, cpt, var): #Bart
         if var not in list(cpt.columns):
             return ("Var not in cpt")
-        othervars = list(cpt.columns)[:-1] #Gets columns without p
-        othervars.remove(var)
-        group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max'])
-        
-        values = []
-        for location in group['idxmax']:
-            max = cpt[var][location]
-            values.append(max)
-        varvalues = pd.DataFrame()
-        varvalues[var] = values
-        group = group.drop('idxmax', axis=1)
-        return group.reset_index(), varvalues
+        varvalues = {}
+        if len(list(cpt.columns)) > 2:
+            othervars = list(cpt.columns)[:-1] #Gets columns without p
+            print(othervars)
+            othervars.remove(var)
+            
+            group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max'])
+            
+            values = []
+            for location in group['idxmax']:
+                max = cpt[var][location]
+                values.append(max)
+            
+            varvalues[var] = values
+            group = group.drop('idxmax', axis=1)
+        else: 
+            max = cpt[var].max()
+            index = cpt.index[cpt[var] == max]
+            group = pd.DataFrame(cpt.loc[index[0]])
+            varvalues[var] = index[0]
+            group = group.transpose()
+        print(group)
+        return group, varvalues
 
     def sequence(self, selected_node, x, y, z):
         #code for sequence
@@ -325,7 +335,6 @@ class BNReasoner:
         return final_factor
 
     def marginal_distribution(self, q: list, e):
-        copynet = copy.deepcopy(self)
         self.prune(q, e)
         distribution = pd.DataFrame()
         
@@ -351,6 +360,31 @@ class BNReasoner:
         cpt['p'] = cpt['p'] / norm_val
         
         return cpt
+    
+    def map(self, query, evidence):
+        copynet = copy.deepcopy(self)
+        comb = copynet.combs(query)
+        comb.remove([])
+        cpts = []
+        varvalues = {}
+        for combination in comb:
+            cpts.append(copynet.marginal_distribution(combination, evidence))
+        for cpt in cpts:
+            maxcpt, assignments = copynet.maxing_out(cpt, cpt.columns[0])
+            varvalues = varvalues | assignments
+        #print(maxcpt)
+            print(varvalues)
+
+        return #cpt
+
+    def combs(self, a): #https://stackoverflow.com/questions/464864/how-to-get-all-possible-combinations-of-a-list-s-elements
+        if len(a) == 0: 
+            return [[]]
+        cs = []
+        for c in self.combs(a[1:]):
+            cs += [c, c+[a[0]]]
+        return cs
+        
 
     def get_parents(self, variables:list):
         parents = []
@@ -459,7 +493,7 @@ net = BNReasoner('testing/dog_problem.BIFXML')
 #print(net.variable_elimination(['dog-out']))
 #print(net.bn.get_cpt('dog-out'))
 #print(net.marginal_distribution(['dog-out'], pd.Series()))
-#print(net.marginal_distribution(['hear-bark'], pd.Series(data={'family-out':True, 'bowel-problem':False}, index=['family-out', 'bowel-problem'])))
+print(net.map(['hear-bark', 'family-out'], pd.Series(data={'bowel-problem':False}, index=['bowel-problem'])))
 #print(net.bn.get_cpt('dog-out')['p'].sum())
 #print(net.variable_elimination(['dog-out']))
 #print(net.bn.get_cpt('B'))
