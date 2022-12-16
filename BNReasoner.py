@@ -29,13 +29,17 @@ class BNReasoner:
         if var not in list(cpt.columns):
             return ("Var not in cpt")
         varvalues = {}
+        if len(cpt.index) <= 2:
+            max = cpt[var].max()
+            index = cpt.index[cpt[var] == max]
+            group = pd.DataFrame(cpt.loc[index[0]])
+            varvalues[var] = max
+            group = group.transpose()
+            return group, varvalues 
         if len(list(cpt.columns)) > 2:
             othervars = list(cpt.columns)[:-1] #Gets columns without p
-            print(othervars)
             othervars.remove(var)
-            
             group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max'])
-            
             values = []
             for location in group['idxmax']:
                 max = cpt[var][location]
@@ -43,15 +47,12 @@ class BNReasoner:
             
             varvalues[var] = values
             group = group.drop('idxmax', axis=1)
-        else: 
-            max = cpt[var].max()
-            index = cpt.index[cpt[var] == max]
-            group = pd.DataFrame(cpt.loc[index[0]])
-            varvalues[var] = index[0]
-            
-            group = group.transpose()
-        print(group)
-        return group, varvalues
+
+        group=group.reset_index()
+        group =group.rename(columns={'max': 'p'})
+
+        return group, pd.DataFrame(varvalues)
+
 
     def sequence(self, selected_node, x, y, z):
         #code for sequence
@@ -229,14 +230,15 @@ class BNReasoner:
         return self
 
     #CPT Operations
-    def factor_multiplication(self, cpt1, cpt2):
+    def factor_multiplication(self, cpt1, cpt2, allow_itself = False):
 
         #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt1.columns): #Avoid multiplying with itself
         #    return cpt1
         #if set(list(cpt1.columns) + list(cpt2.columns)) == set(cpt2.columns): #Avoid multiplying with itself
         #    return cpt2
-        if str(cpt1.columns) == str(cpt2.columns):
-            return cpt1
+        if allow_itself == False:
+            if str(cpt1.columns) == str(cpt2.columns):
+                return cpt1
 
         variables = []
         for column in cpt1.columns: #Creates list with all variables in CPTs
@@ -364,25 +366,24 @@ class BNReasoner:
     
     
 
-    def map(self, query, evidence):
+    def map(self, query, evidence): #TODO Assignments in dataframe or something
         copynet = copy.deepcopy(self)
         #comb.sort(key=len())
-        varvalues = {}
         cpts = {}
         querycpt = copynet.variable_elimination(query)
-
+        varvalues = pd.DataFrame()
         for value in query:
             cpt = copynet.marginal_distribution([value], evidence)
             cpt = cpt.reset_index(drop=False)
             cpt.rename(columns = {'Assignment':value, value:'p'}, inplace = True)
             cpts[value] = cpt
         for value in query:
-            querycpt = copynet.factor_multiplication(querycpt, cpts[value])
+            querycpt = copynet.factor_multiplication(querycpt, cpts[value], allow_itself=True)
             querycpt, assignment = copynet.maxing_out(querycpt, value)
-            varvalues[value] = assignment
-            #print(varvalues)
-
-        return #cpt
+            print(varvalues)
+            print(assignment)
+            #varvalues[value] = assignment
+        return querycpt
 
 
     def get_parents(self, variables:list):
