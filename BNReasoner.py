@@ -361,16 +361,22 @@ class BNReasoner:
         
         return cpt
     
+    
+
     def map(self, query, evidence):
         copynet = copy.deepcopy(self)
         comb = copynet.combs(query)
         comb.remove([])
-        cpts = []
+        #comb.sort(key=len())
+        cpts = {}
         varvalues = {}
         for combination in comb:
-            cpts.append(copynet.marginal_distribution(combination, evidence))
+            cpt = (copynet.marginal_distribution(combination, evidence))
+            cpts[str(cpt.columns.to_list())] = cpt 
         for cpt in cpts:
-            maxcpt, assignments = copynet.maxing_out(cpt, cpt.columns[0])
+            var = cpt.columns[0]
+            maxcpt, assignments = copynet.maxing_out(cpt, var)
+            self.factor_multiplication(maxcpt, cpts[var])
             varvalues = varvalues | assignments
         #print(maxcpt)
             print(varvalues)
@@ -385,7 +391,6 @@ class BNReasoner:
             cs += [c, c+[a[0]]]
         return cs
         
-
     def get_parents(self, variables:list):
         parents = []
         for var in variables:
