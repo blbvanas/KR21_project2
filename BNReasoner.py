@@ -48,6 +48,7 @@ class BNReasoner:
             index = cpt.index[cpt[var] == max]
             group = pd.DataFrame(cpt.loc[index[0]])
             varvalues[var] = index[0]
+            
             group = group.transpose()
         print(group)
         return group, varvalues
@@ -365,32 +366,25 @@ class BNReasoner:
 
     def map(self, query, evidence):
         copynet = copy.deepcopy(self)
-        comb = copynet.combs(query)
-        comb.remove([])
         #comb.sort(key=len())
-        cpts = {}
         varvalues = {}
-        for combination in comb:
-            cpt = (copynet.marginal_distribution(combination, evidence))
-            cpts[str(cpt.columns.to_list())] = cpt 
-        for cpt in cpts:
-            var = cpt.columns[0]
-            maxcpt, assignments = copynet.maxing_out(cpt, var)
-            self.factor_multiplication(maxcpt, cpts[var])
-            varvalues = varvalues | assignments
-        #print(maxcpt)
-            print(varvalues)
+        cpts = {}
+        querycpt = copynet.variable_elimination(query)
+
+        for value in query:
+            cpt = copynet.marginal_distribution([value], evidence)
+            cpt = cpt.reset_index(drop=False)
+            cpt.rename(columns = {'Assignment':value, value:'p'}, inplace = True)
+            cpts[value] = cpt
+        for value in query:
+            querycpt = copynet.factor_multiplication(querycpt, cpts[value])
+            querycpt, assignment = copynet.maxing_out(querycpt, value)
+            varvalues[value] = assignment
+            #print(varvalues)
 
         return #cpt
 
-    def combs(self, a): #https://stackoverflow.com/questions/464864/how-to-get-all-possible-combinations-of-a-list-s-elements
-        if len(a) == 0: 
-            return [[]]
-        cs = []
-        for c in self.combs(a[1:]):
-            cs += [c, c+[a[0]]]
-        return cs
-        
+
     def get_parents(self, variables:list):
         parents = []
         for var in variables:
@@ -498,6 +492,7 @@ net = BNReasoner('testing/dog_problem.BIFXML')
 #print(net.variable_elimination(['dog-out']))
 #print(net.bn.get_cpt('dog-out'))
 #print(net.marginal_distribution(['dog-out'], pd.Series()))
+
 print(net.map(['hear-bark', 'family-out'], pd.Series(data={'bowel-problem':False}, index=['bowel-problem'])))
 #print(net.bn.get_cpt('dog-out')['p'].sum())
 #print(net.variable_elimination(['dog-out']))
