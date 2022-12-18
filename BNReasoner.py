@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import itertools
 import numpy as np
 import copy
+import time
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -348,14 +349,13 @@ class BNReasoner:
 
     def mpe(self, evidence):
         self.prune(self.bn.get_all_variables(), evidence)
-        
+
         q = self.bn.get_all_variables()
 
         for x in list(evidence.index):
             q.remove(x)
 
         return self.map(q, evidence)
-    
     
 
     def map(self, query, evidence): 
@@ -462,7 +462,145 @@ def test():
 
 test()
 
-
-
-
-
+def test_varelimt1(net): #test var elimination on dog test set
+    time_md = []
+    for i in range(0, 10):
+        start = time.time()
+        net.variable_elimination(['family-out', 'hear-bark', 'light-on', 'dog-out'], heuristic = 'min-degree')
+        end = time.time()
+        time_md.append((end-start) * 10**3)
+ 
+    output_md = 'Min degree mean runningtime ms: ', np.mean(time_md)
+ 
+    time_mf = []
+    for i in range(0, 10):
+        start = time.time()
+        net.variable_elimination(['family-out', 'hear-bark', 'light-on', 'dog-out'], heuristic = 'min-fill')
+        end = time.time()
+        time_mf.append((end-start) * 10**3)
+ 
+    output_mf = "Min fill mean runningtime ms: ", np.mean(time_mf)
+ 
+    return output_md, output_mf
+ 
+def test_varelimt2(net): #test var elimination on our own test set
+    time_md = []
+    for i in range(0, 10):
+        start = time.time()
+        net.variable_elimination(['Family History', 'Decrease Energy', 'Stress', 'Shift Moods'], heuristic = 'min-degree')
+        end = time.time()
+        time_md.append((end-start) * 10**3)
+ 
+    output_md = 'Min degree mean runningtime ms 2: ', np.mean(time_md)
+ 
+    time_mf = []
+    for i in range(0, 10):
+        start = time.time()
+        net.variable_elimination(['Family History', 'Decrease Energy', 'Stress', 'Shift Moods'], heuristic = 'min-fill')
+        end = time.time()
+        time_mf.append((end-start) * 10**3)
+ 
+    output_mf = "Min fill mean runningtime ms 2: ", np.mean(time_mf)
+ 
+    print(output_md, output_mf)
+ 
+ 
+def test_orderingt1(net): #test ordering on dog problem test file
+    startor = time.time()
+    ord_deg = net.ordering(['light-on', 'bowel-problem', 'dog-out', 'hear-bark', 'family-out'], 'min-degree')
+    endor = time.time()
+ 
+    mindegree = 'The ordering given by min-degree and the time it took, respectively:', ord_deg, ((endor-startor) * 10**3)
+ 
+    starto = time.time()
+    ord_fill = net.ordering(['light-on', 'bowel-problem', 'dog-out', 'hear-bark', 'family-out'], 'min-fill')
+    endo = time.time()
+ 
+    minfill = ('The ordering given by min-fill and the time it took, respectively:', ord_fill, ((endo-starto) * 10**3))
+ 
+    print(mindegree, minfill)
+ 
+ 
+def test_orderingt2(net): #test ordering on our own test file
+    startor = time.time()
+    ord_deg = net.ordering(['Depression', 'Manic Depression', 'Alcohol Abuse', 'Shift Moods', 'Stress', 'Low Self Esteem', 'Family History', 'Suicide Attempt', 'Decrease Energy', 'Bad Sleep'], 'min-degree')
+    endor = time.time()
+ 
+    mindegree = 'The ordering given by min-degree and the time it took, respectively:', ord_deg, ((endor-startor) * 10**3)
+ 
+    starto = time.time()
+    ord_fill = net.ordering(['Depression', 'Manic Depression', 'Alcohol Abuse', 'Shift Moods', 'Stress', 'Low Self Esteem', 'Family History', 'Suicide Attempt', 'Decrease Energy', 'Bad Sleep'], 'min-fill')
+    endo = time.time()
+ 
+    minfill = ('The ordering given by min-fill and the time it took, respectively:', ord_fill, ((endo-starto) * 10**3))
+    print(mindegree, minfill)
+ 
+def test_marg_1(net, prune: bool):
+    marg_list = []
+    if prune is True:
+        for i in range(0, 10): 
+            start = time.time()
+            net.marginal_distribution(['light-on', 'dog-out'], pd.Series(data={'hear-bark': True, 'family-out' :False}, index = ['hear-bark', 'family-out']), prune = True)
+            end = time.time()
+            marg_list.append((end-start) * 10**3)
+    else:
+        for i in range(0, 10): 
+            start = time.time()
+            net.marginal_distribution(['light-on', 'dog-out'], pd.Series(data={'hear-bark': True, 'family-out' :False}, index = ['hear-bark', 'family-out']), prune = False)
+            end = time.time()
+            marg_list.append((end-start) * 10**3)       
+    return np.mean(marg_list)
+ 
+def test_marg_2(net, prune: bool):
+    marg_list = []
+    if prune is True:
+        for i in range(0, 10): 
+            start = time.time()
+            net.marginal_distribution(['Stress', 'Bad Sleep', 'Decrease Energy'], pd.Series(data={'Low Self Esteem':False, 'Manic Depression': False}, index=['Low Self Esteem', 'Manic Depression']), prune = True)
+            end = time.time()
+            marg_list.append((end-start) * 10**3)
+    else:
+        for i in range(0, 10): 
+            start = time.time()
+            net.marginal_distribution(['Stress', 'Bad Sleep', 'Decrease Energy'], pd.Series(data={'Low Self Esteem':False, 'Manic Depression': False}, index= ['Low Self Esteem', 'Manic Depression']), prune = False)
+            end = time.time()
+            marg_list.append((end-start) * 10**3)        
+    return np.mean(marg_list)
+ 
+ 
+def final_test_marg():
+    list_marg = []
+    marg1pt = test_marg_1(nettest_1, prune = True)
+    list_marg.append(marg1pt)
+    marg1pf = test_marg_1(nettest_1, prune = False)
+    list_marg.append(marg1pf)
+    marg2pt = test_marg_2(nettest_2, prune = True)
+    list_marg.append(marg2pt)
+    marg2pf = test_marg_2(nettest_2, prune = False)
+    list_marg.append(marg2pf)
+ 
+    print('This is the list', list_marg)
+ 
+def final_test_var():
+    lst_varelim = []
+    varelim1 = test_varelimt1(nettest_1)
+    lst_varelim.append(varelim1)
+    varelim2 = test_varelimt2(nettest_2)
+    lst_varelim.append(varelim2)
+ 
+    print('This is the list', lst_varelim)
+ 
+ 
+def final_test_ordering():
+    test_orderingt1(nettest_1)
+    test_orderingt2(nettest_2)
+ 
+    return True
+ 
+ 
+nettest_1 = BNReasoner('testing/dog_problem.BIFXML')
+nettest_2 = BNReasoner('testing/Bay_Net_Group_26.BIFXML')
+ 
+def cpt(which):
+    cpt = nettest_2.bn.get_cpt(which)
+    cpt.to_csv(f'{which}.csv')
