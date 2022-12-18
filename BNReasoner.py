@@ -25,7 +25,7 @@ class BNReasoner:
         else:
             self.bn = net
 
-    def maxing_out(self, cpt, var): #Bart
+    def maxing_out(self, cpt, var):
         if var not in list(cpt.columns):
             return ("Var not in cpt")
         varvalues = {}
@@ -39,9 +39,9 @@ class BNReasoner:
         if len(list(cpt.columns)) > 2:
             othervars = list(cpt.columns)[:-1] #Gets columns without p
             othervars.remove(var)
-            group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max'])
+            group = cpt.groupby(othervars)['p'].agg(['idxmax', 'max']) #Groups by all other variables, gets the places where p is maximal
             values = []
-            for location in group['idxmax']:
+            for location in group['idxmax']: #Finds the actual value of the max index
                 max = cpt[var][location]
                 values.append(max)
             
@@ -51,8 +51,7 @@ class BNReasoner:
         group=group.reset_index()
         group =group.rename(columns={'max': 'p'})
 
-        return group, pd.DataFrame(varvalues)
-
+        return group, pd.DataFrame(varvalues) #Returns both cpt with maxed out, and a dataframe with the maxed out variables values
 
     def sequence(self, selected_node, x, y, z):
         #code for sequence
@@ -106,7 +105,6 @@ class BNReasoner:
                 return False
 
     def get_paths(self, root:list, leaf:list): 
-        self.bn.draw_structure()
         graph = self.bn.get_interaction_graph()
         all_paths = []
         for node in root: #Get all paths from each root to each leaf
@@ -294,7 +292,6 @@ class BNReasoner:
         cpt = cpt.groupby(varskept).sum() #Groups CPT by variables that are still left, then sums the p values
         return cpt.reset_index()
 
-   # def marginal_distribution
     def ordering(self, x, heuristic):
         if heuristic == "min-degree":
             return self.min_degree(x)
@@ -366,9 +363,8 @@ class BNReasoner:
     
     
 
-    def map(self, query, evidence): #TODO Assignments in dataframe or something
+    def map(self, query, evidence): 
         copynet = copy.deepcopy(self)
-        #comb.sort(key=len())
         cpts = {}
         querycpt = copynet.variable_elimination(query)
         varvalues = pd.DataFrame()
@@ -382,7 +378,6 @@ class BNReasoner:
             querycpt, assignment = copynet.maxing_out(querycpt, value)
             print(varvalues)
             print(assignment)
-            #varvalues[value] = assignment
         return querycpt
 
 
@@ -411,15 +406,17 @@ class BNReasoner:
             if len(self.bn.get_parents(parent)) == 0:
                 roots.append(parent) 
         return roots
-"""        
+       
 def test():
+    BNR = BNReasoner('testing/dog_problem.BIFXML')
     #test pruning
-    net.bn.draw_structure()
-    prune = BNR.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
-    net.bn.draw_structure()
+    BT = copy.deepcopy(BNR)
+    BT.bn.draw_structure()
+    BT.prune(query=['family-out', 'bowel-problem'], evidence=pd.Series(data={'dog-out':True}, index=['dog-out']))
+    BT.bn.draw_structure()
 
     #test multiplication
-    multiplication_cpt = BNR.factor_multiplication('family-out', 'hear-bark')
+    multiplication_cpt = BNR.factor_multiplication(BNR.bn.get_cpt('family-out'), BNR.bn.get_cpt('hear-bark'))
     print(multiplication_cpt)
 
     #test d-sep
@@ -427,74 +424,50 @@ def test():
     y = ["bowel-problem"]
     z = ["dog-out"]
 
-    dsep = BNR.d_seperated(x, y, z)
-    print(dsep)
-
-    # x = ['bowel-problem']
-    # z = ['dog-out']
-    # y = ['family-out']
-    # d_separated = BNR.d_seperated(x, y, z)
-    # print(d_separated)
+#   dsep = BNR.d_seperated(x, y, z)
+#   print(dsep)
 
     #test indep
-    # x = ['bowel-problem']
-    # z = ['dog-out']
-    # y = ['family-out']
-    # independent = BNR.independent(x, y, z)
+    x = ['bowel-problem']
+    z = ['dog-out']
+    y = ['family-out']
+    #independent = BNR.independent(x, y, z)
+    #print(independent)
+
 
     #test marg
-
+    print(BNR.marginalization(BNR.bn.get_cpt('hear-bark'), 'dog-out'))
     #test max-out
+    print(BNR.maxing_out(BNR.bn.get_cpt('hear-bark'), 'dog-out'))
+
 
     #test fac mul
+    print(BNR.factor_multiplication(BNR.bn.get_cpt('family-out'), BNR.bn.get_cpt('hear-bark')))
 
     #test order
-    # mindegree = BNR.min_degree(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
-    # minfill = BNR.min_fill(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+    #mindegree = BNR.min_degree(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
+    #minfill = BNR.min_fill(["Wet Grass?", "Sprinkler?", "Slippery Road?", "Rain?", "Winter?"])
 
-    # print(mindegree)
-    # print(minfill)
+    #print(mindegree)
+    #print(minfill)
 
     #test var elim
-
+    BT = copy.deepcopy(BNR)
+    print(BT.variable_elimination(['hear-bark', 'family-out']))
     #test marg distr
+    BT = copy.deepcopy(BNR)
+    print(BT.marginal_distribution(['hear-bark', 'family-out'], pd.Series(data={'bowel-problem':False}, index=['bowel-problem'])))
 
     #test mpe
-#filename_dog = 'testing/dog_problem.BIFXML'
-#filename_lec1 = 'testing/lecture_example.BIFXML'
 
-#BN_dog = test_function(filename = filename_dog, var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
-#print(BN_dog)
+    #test MAP
+    BT = copy.deepcopy(BNR)
+    print(BT.map(['hear-bark', 'family-out'], pd.Series(data={'bowel-problem':False}, index=['bowel-problem']))) #hear-bark should be true, family out should be true
+    return
 
-#filename_dog = 'testing/dog_problem.BIFXML'
-#filename_lec1 = 'testing/lecture_example.BIFXML'
+test()
 
-#BN_dog = test_function(filename = '/home/bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML', var1 = 'dog-out', var2 = 'family-out', Q = [], e = {})
-#print(BN_dog)
 
-# net = BNReasoner("C:/Users/Bart/Documents/GitHub/KR21_project2/testing/dog_problem.BIFXML")
-# maxes = net.factor_multiplication('family-out', 'hear-bark')
-# print(maxes)
 
-net = BNReasoner('testing/dog_problem.BIFXML')
-net.bn.draw_structure()
 
-#print(net.get_paths('family-out', 'bowel-problem'))
-#print(net.get_paths(['family-out'], ['bowel-problem']))
 
-# maxes = net.factor_multiplication('family-out', 'hear-bark')
-# print(maxes)
-"""
-net = BNReasoner('testing/dog_problem.BIFXML')
-net = BNReasoner('testing/dog_problem.BIFXML')
-#print(net.variable_elimination(['A']))
-#print(net.variable_elimination(['hear-bark', 'dog-out']))
-#print(net.factor_multiplication(net.variable_elimination(['hear-bark']), net.variable_elimination(['family-out'])))
-#print(net.variable_elimination(['dog-out']))
-#print(net.bn.get_cpt('dog-out'))
-#print(net.marginal_distribution(['dog-out'], pd.Series()))
-
-print(net.map(['hear-bark', 'family-out'], pd.Series(data={'bowel-problem':False}, index=['bowel-problem'])))
-#print(net.bn.get_cpt('dog-out')['p'].sum())
-#print(net.variable_elimination(['dog-out']))
-#print(net.bn.get_cpt('B'))
