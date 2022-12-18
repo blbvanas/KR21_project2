@@ -347,19 +347,14 @@ class BNReasoner:
 
 
     def mpe(self, evidence):
-        #prune edges
         self.prune(self.bn.get_all_variables(), evidence)
+        
+        q = self.bn.get_all_variables()
 
-        #get elimination order
-        elimination_order = self.min_fill(self.bn.get_all_variables())
-        
-        cpt = self.variable_elimination(list(set(elimination_order) - set(list(evidence.index))))
-        
-        norm_val = self.bn.get_cpt(list(evidence.index)[0])['p'].sum()
-        
-        cpt['p'] = cpt['p'] / norm_val
-        
-        return cpt
+        for x in list(evidence.index):
+            q.remove(x)
+
+        return self.map(q, evidence)
     
     
 
